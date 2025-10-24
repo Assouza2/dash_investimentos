@@ -12,6 +12,22 @@ arquivo = st.file_uploader("📂 Envie seu arquivo CSV da carteira", type=["csv"
 if arquivo is not None:
     df = pd.read_csv(arquivo)
 
+    # Normalizar nomes de colunas (remover espaços, acentos e deixar minúsculas)
+import unidecode
+df.columns = [unidecode.unidecode(c).strip().lower() for c in df.columns]
+
+# Mapear colunas possíveis
+mapa = {
+    "composicao": "composição",
+    "tipo": "tipo",
+    "valor": "valor",
+    "valor (r$)": "valor",
+    "valor total": "valor"
+}
+
+# Renomear colunas de acordo com o mapa
+df = df.rename(columns={c: mapa.get(c, c) for c in df.columns})
+
     # Normalizar nomes de colunas (remover espaços e deixar minúsculas)
     df.columns = df.columns.str.strip().str.lower()
 
@@ -56,3 +72,4 @@ if arquivo is not None:
     )
 else:
     st.info("Envie um arquivo CSV para visualizar o dashboard.")
+
