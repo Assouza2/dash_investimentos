@@ -1,68 +1,84 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import unidecode  # biblioteca para remover acentos
 
+# Configuração da página
 st.set_page_config(page_title="Dashboard de Investimentos", page_icon="💰", layout="wide")
 
 st.title("💰 Dashboard da Carteira de Investimentos")
 
-# upload de arquivo
+# Upload de arquivo
 arquivo = st.file_uploader("📂 Envie seu arquivo CSV da carteira", type=["csv"])
 
 if arquivo is not None:
+    # Ler o CSV
     df = pd.read_csv(arquivo)
 
-    # Normalizar nomes de colunas (remover espaços, acentos e deixar minúsculas)
-import unidecode
-df.columns = [unidecode.unidecode(c).strip().lower() for c in df.columns]
+    # --- Normalizar nomes de colunas ---
+    # Remove espaços, acentos e coloca tudo em minúsculas
+    df.columns = [unidecode.unidecode(c).strip().lower() for c in df.columns]
 
-# Mapear colunas possíveis
-mapa = {
-    "composicao": "composição",
-    "tipo": "tipo",
-    "valor": "valor",
-    "valor (r$)": "valor",
-    "valor total": "valor"
-}
+    # Mapa para renomear colunas conhecidas (caso venham com variações)
+    mapa = {
+        "composicao": "composição",
+        "tipo": "tipo",
+        "valor": "valor",
+        "valor (r$)": "valor",
+        "valor total": "valor"
+    }
+    df = df.rename(columns={c: mapa.get(c, c) for c in df.columns})
 
-# Renomear colunas de acordo com o mapa
-df = df.rename(columns={c: mapa.get(c, c) for c in df.columns})
-
-    # Normalizar nomes de colunas (remover espaços e deixar minúsculas)
-    df.columns = df.columns.str.strip().str.lower()
-
-    # Verificar se coluna 'valor' existe
-    if "valor" not in df.columns:
-        st.error("❌ A coluna 'Valor' não foi encontrada no arquivo CSV. Certifique-se de que existe uma coluna chamada 'Valor'.")
+    # Verificação de colunas obrigatórias
+    colunas_necessarias = {"composição", "tipo", "valor"}
+    faltando = colunas_necessarias - set(df.columns)
+    if faltando:
+        st.error(f"❌ As seguintes colunas estão faltando no arquivo CSV: {', '.join(faltando)}")
         st.stop()
 
-    # limpar valores
+    # --- Limpar valores monetários ---
     df["valor"] = (
         df["valor"]
         .replace({"R\$": "", "\.": "", ",": "."}, regex=True)
         .astype(float)
     )
 
+    # --- Cálculos e métricas ---
     total = df["valor"].sum()
     df["%_da_carteira"] = df["valor"] / total * 100
 
-    st.metric("Valor total da carteira", f"R$ {total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+    st.metric(
+        "Valor total da carteira",
+        f"R$ {total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    )
 
+    # --- Layout com gráficos ---
     col1, col2 = st.columns(2)
 
     with col1:
         st.subheader("📊 Por Composição")
-        fig1 = px.pie(df, names="composição", values="valor", hole=0.4,
-                      color_discrete_sequence=px.colors.qualitative.Pastel)
+        fig1 = px.pie(
+            df,
+            names="composição",
+            values="valor",
+            hole=0.4,
+            color_discrete_sequence=px.colors.qualitative.Pastel
+        )
         st.plotly_chart(fig1, use_container_width=True)
 
     with col2:
         st.subheader("📈 Por Tipo")
-        fig2 = px.bar(df.groupby("tipo", as_index=False)["valor"].sum(),
-                      x="tipo", y="valor", color="tipo",
-                      text_auto=".2s", color_discrete_sequence=px.colors.qualitative.Vivid)
+        fig2 = px.bar(
+            df.groupby("tipo", as_index=False)["valor"].sum(),
+            x="tipo",
+            y="valor",
+            color="tipo",
+            text_auto=".2s",
+            color_discrete_sequence=px.colors.qualitative.Vivid
+        )
         st.plotly_chart(fig2, use_container_width=True)
 
+    # --- Tabela detalhada ---
     st.subheader("📋 Detalhamento por Ativo")
     st.dataframe(
         df.sort_values("valor", ascending=False).style.format({
@@ -70,6 +86,6 @@ df = df.rename(columns={c: mapa.get(c, c) for c in df.columns})
             "%_da_carteira": "{:.2f}%"
         })
     )
-else:
-    st.info("Envie um arquivo CSV para visualizar o dashboard.")
 
+else:
+    st.info("📥 Envie um arquivo CSV para visualizar o dashboard.")
